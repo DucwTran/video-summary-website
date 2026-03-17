@@ -1,0 +1,13 @@
+torch
+transformers
+openai-whisper
+opencv-python
+scenedetect
+Pillow
+accelerate
+ffmpeg-python
+fastapi
+uvicorn
+python-multipart
+jinja2
+moviepy

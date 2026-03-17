@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Summarizer - Tóm Tắt Video Thông Minh</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>AI Video Summarizer</h1>
+            <p class="subtitle">Tải video của bạn lên để nhận bản tóm tắt nội dung bằng tiếng Việt chỉ trong vài phút.</p>
+            
+            <form id="uploadForm">
+                <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                    <span class="upload-icon">🎬</span>
+                    <p id="fileNameDisplay">Nhấn để chọn video hoặc kéo thả vào đây</p>
+                    <input type="file" id="fileInput" name="file" accept="video/*" onchange="updateFileName(this)">
+                </div>
+                <button type="submit" class="btn" id="submitBtn">Bắt đầu tóm tắt</button>
+            </form>
+
+            <div class="processing-info" id="processingInfo">
+                <span class="loader"></span>
+                <p id="statusText">Đang khởi tạo...</p>
+            </div>
+
+            <div class="results" id="results" style="display: none;">
+                <div class="result-section">
+                    <h3>🎬 Video Highlight</h3>
+                    <div class="result-content" id="videoContent" style="text-align: center;">
+                        <video id="highlightPlayer" controls width="100%" style="border-radius: 8px; max-height: 400px; display: none;">
+                            <source src="" type="video/mp4">
+                            Trình duyệt của bạn không hỗ trợ thẻ video.
+                        </video>
+                        <p id="noVideoMsg" style="display: none;">Không tạo được highlight.</p>
+                    </div>
+                </div>
+                <div class="result-section">
+                    <h3>📝 Tóm tắt nội dung</h3>
+                    <div class="result-content" id="summaryContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateFileName(input) {
+            const display = document.getElementById('fileNameDisplay');
+            if (input.files && input.files[0]) {
+                display.innerText = input.files[0].name;
+            }
+        }
+
+        const form = document.getElementById('uploadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const processingInfo = document.getElementById('processingInfo');
+        const statusText = document.getElementById('statusText');
+        const results = document.getElementById('results');
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files[0]) {
+                alert('Vui lòng chọn một file video.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            // UI feedback
+            submitBtn.disabled = true;
+            processingInfo.style.display = 'block';
+            results.style.display = 'none';
+            document.getElementById('highlightPlayer').style.display = 'none';
+            document.getElementById('noVideoMsg').style.display = 'none';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                pollStatus(data.job_id);
+            } catch (err) {
+                alert('Lỗi khi tải file: ' + err.message);
+                submitBtn.disabled = false;
+                processingInfo.style.display = 'none';
+            }
+        };
+
+        async function pollStatus(jobId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/status/${jobId}`);
+                    const data = await response.json();
+                    
+                    statusText.innerText = data.status;
+
+                    if (data.status === 'Completed') {
+                        clearInterval(interval);
+                        showResults(data.result);
+                    } else if (data.status.startsWith('Error')) {
+                        clearInterval(interval);
+                        alert(data.status);
+                        submitBtn.disabled = false;
+                        processingInfo.style.display = 'none';
+                    }
+                } catch (err) {
+                    console.error('Polling error:', err);
+                }
+            }, 2000);
+        }
+
+        function showResults(result) {
+            processingInfo.style.display = 'none';
+            results.style.display = 'block';
+            
+            document.getElementById('summaryContent').innerText = result.summary;
+            
+            // Xử lý hiển thị video highlight
+            const player = document.getElementById('highlightPlayer');
+            const noVideoMsg = document.getElementById('noVideoMsg');
+            
+            if (result.highlight_url && result.highlight_url !== "") {
+                player.src = result.highlight_url;
+                player.style.display = 'block';
+                noVideoMsg.style.display = 'none';
+                player.load();
+            } else {
+                player.style.display = 'none';
+                noVideoMsg.style.display = 'block';
+            }
+            
+            submitBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
